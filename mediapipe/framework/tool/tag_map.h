@@ -53,10 +53,10 @@ class TagMap {
   // TAG:<index>:name. This is the most common usage:
   // ASSIGN_OR_RETURN(std::shared_ptr<TagMap> tag_map,
   //                  tool::TagMap::Create(node.input_streams()));
-  static ::mediapipe::StatusOr<std::shared_ptr<TagMap>> Create(
+  static mediapipe::StatusOr<std::shared_ptr<TagMap>> Create(
       const proto_ns::RepeatedPtrField<ProtoString>& tag_index_names) {
     std::shared_ptr<TagMap> output(new TagMap());
-    RETURN_IF_ERROR(output->Initialize(tag_index_names));
+    MP_RETURN_IF_ERROR(output->Initialize(tag_index_names));
     return std::move(output);
   }
 
@@ -64,10 +64,10 @@ class TagMap {
   // TODO: Migrate callers and delete this method.
   ABSL_DEPRECATED(
       "Use mediapipe::tool::TagMap::Create(tag_index_names) instead.")
-  static ::mediapipe::StatusOr<std::shared_ptr<TagMap>> Create(
+  static mediapipe::StatusOr<std::shared_ptr<TagMap>> Create(
       const TagAndNameInfo& info) {
     std::shared_ptr<TagMap> output(new TagMap());
-    RETURN_IF_ERROR(output->Initialize(info));
+    MP_RETURN_IF_ERROR(output->Initialize(info));
     return std::move(output);
   }
 
@@ -108,12 +108,12 @@ class TagMap {
 
   // Initialize the TagMap.  Due to only having a factory function for
   // creation, there is no way for a user to have an uninitialized TagMap.
-  ::mediapipe::Status Initialize(
+  mediapipe::Status Initialize(
       const proto_ns::RepeatedPtrField<ProtoString>& tag_index_names);
 
   // Initialize from a TagAndNameInfo.
   ABSL_DEPRECATED("Use Initialize(tag_index_names) instead.")
-  ::mediapipe::Status Initialize(const TagAndNameInfo& info);
+  mediapipe::Status Initialize(const TagAndNameInfo& info);
 
   // Initialize names_ using a map from tag to the names for that tag.
   void InitializeNames(
@@ -126,6 +126,11 @@ class TagMap {
   // The names of the data (indexed by CollectionItemId).
   std::vector<std::string> names_;
 };
+
+// Equal TagData structs define equal id ranges.
+inline bool operator==(const TagMap::TagData& d1, const TagMap::TagData& d2) {
+  return d1.id == d2.id && d1.count == d2.count;
+}
 
 }  // namespace tool
 }  // namespace mediapipe

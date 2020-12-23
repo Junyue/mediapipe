@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-licenses(["notice"])  # Apache 2.0
+licenses(["notice"])
 
 load("//mediapipe/framework/port:build_config.bzl", "mediapipe_cc_proto_library")
 
@@ -29,7 +29,7 @@ mediapipe_cc_proto_library(
     name = "callback_packet_calculator_cc_proto",
     srcs = ["callback_packet_calculator.proto"],
     cc_deps = ["//mediapipe/framework:calculator_cc_proto"],
-    visibility = ["//mediapipe/framework:__subpackages__"],
+    visibility = ["//visibility:public"],
     deps = [":callback_packet_calculator_proto"],
 )
 

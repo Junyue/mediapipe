@@ -24,6 +24,7 @@
 #include "mediapipe/framework/port/status.h"
 #include "mediapipe/framework/port/statusor.h"
 #include "mediapipe/framework/tool/calculator_graph_template.pb.h"
+#include "mediapipe/framework/tool/options_util.h"
 
 namespace mediapipe {
 
@@ -32,7 +33,7 @@ namespace mediapipe {
 // the graph is running.
 class Subgraph {
  public:
-  using SubgraphOptions = CalculatorOptions;
+  using SubgraphOptions = CalculatorGraphConfig::Node;
   Subgraph();
   virtual ~Subgraph();
   // Returns the config to use for one instantiation of the subgraph. The
@@ -40,15 +41,29 @@ class Subgraph {
   // the parent graph.
   // Subclasses may use the options argument to parameterize the config.
   // TODO: make this static?
-  virtual ::mediapipe::StatusOr<CalculatorGraphConfig> GetConfig(
+  virtual mediapipe::StatusOr<CalculatorGraphConfig> GetConfig(
       const SubgraphOptions& options) = 0;
+
+  // Returns options of a specific type.
+  template <typename T>
+  static T GetOptions(const Subgraph::SubgraphOptions& supgraph_options) {
+    return tool::OptionsMap().Initialize(supgraph_options).Get<T>();
+  }
+
+  // Returns the CalculatorGraphConfig::Node specifying the subgraph.
+  // This provides to Subgraphs the same graph information that GetContract
+  // provides to Calculators.
+  static CalculatorGraphConfig::Node GetNode(
+      const Subgraph::SubgraphOptions& supgraph_options) {
+    return supgraph_options;
+  }
 };
 
 using SubgraphRegistry = GlobalFactoryRegistry<std::unique_ptr<Subgraph>>;
 
-#define REGISTER_MEDIAPIPE_GRAPH(name)                               \
-  REGISTER_FACTORY_FUNCTION_QUALIFIED(::mediapipe::SubgraphRegistry, \
-                                      subgraph_registration, name,   \
+#define REGISTER_MEDIAPIPE_GRAPH(name)                             \
+  REGISTER_FACTORY_FUNCTION_QUALIFIED(mediapipe::SubgraphRegistry, \
+                                      subgraph_registration, name, \
                                       absl::make_unique<name>)
 
 // A graph factory holding a literal CalculatorGraphConfig.
@@ -56,7 +71,7 @@ class ProtoSubgraph : public Subgraph {
  public:
   ProtoSubgraph(const CalculatorGraphConfig& config);
   virtual ~ProtoSubgraph();
-  virtual ::mediapipe::StatusOr<CalculatorGraphConfig> GetConfig(
+  virtual mediapipe::StatusOr<CalculatorGraphConfig> GetConfig(
       const Subgraph::SubgraphOptions& options);
 
  private:
@@ -68,7 +83,7 @@ class TemplateSubgraph : public Subgraph {
  public:
   TemplateSubgraph(const CalculatorGraphTemplate& templ);
   virtual ~TemplateSubgraph();
-  virtual ::mediapipe::StatusOr<CalculatorGraphConfig> GetConfig(
+  virtual mediapipe::StatusOr<CalculatorGraphConfig> GetConfig(
       const Subgraph::SubgraphOptions& options);
 
  private:
@@ -87,6 +102,10 @@ class GraphRegistry {
   // Ownership of the specified FunctionRegistry is not transferred.
   GraphRegistry(FunctionRegistry<std::unique_ptr<Subgraph>>* factories);
 
+  // Registers a graph config builder type, using a factory function.
+  void Register(const std::string& type_name,
+                std::function<std::unique_ptr<Subgraph>()> factory);
+
   // Registers a graph config by name.
   void Register(const std::string& type_name,
                 const CalculatorGraphConfig& config);
@@ -99,7 +118,7 @@ class GraphRegistry {
   bool IsRegistered(const std::string& ns, const std::string& type_name) const;
 
   // Returns the specified graph config.
-  ::mediapipe::StatusOr<CalculatorGraphConfig> CreateByName(
+  mediapipe::StatusOr<CalculatorGraphConfig> CreateByName(
       const std::string& ns, const std::string& type_name,
       const Subgraph::SubgraphOptions* options = nullptr) const;
 

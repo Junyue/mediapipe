@@ -13,11 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-licenses(["notice"])  # Apache 2.0
+licenses(["notice"])
 
 package(default_visibility = ["//visibility:private"])
-
-exports_files(["LICENSE"])
 
 load("//mediapipe/framework/port:build_config.bzl", "mediapipe_cc_proto_library")
 
@@ -31,7 +29,7 @@ mediapipe_cc_proto_library(
     name = "sky_light_calculator_cc_proto",
     srcs = ["sky_light_calculator.proto"],
     cc_deps = ["//mediapipe/framework:calculator_cc_proto"],
-    visibility = ["//mediapipe:__subpackages__"],
+    visibility = ["//visibility:public"],
     deps = [":sky_light_calculator_proto"],
 )
 
@@ -45,14 +43,22 @@ mediapipe_cc_proto_library(
     name = "night_light_calculator_cc_proto",
     srcs = ["night_light_calculator.proto"],
     cc_deps = ["//mediapipe/framework:calculator_cc_proto"],
-    visibility = ["//mediapipe:__subpackages__"],
+    visibility = ["//visibility:public"],
     deps = [":night_light_calculator_proto"],
 )
 
 proto_library(
     name = "zoo_mutator_proto",
     srcs = ["zoo_mutator.proto"],
-    deps = ["@protobuf_archive//:any_proto"],
+    deps = ["@com_google_protobuf//:any_proto"],
+)
+
+mediapipe_cc_proto_library(
+    name = "zoo_mutator_cc_proto",
+    srcs = ["zoo_mutator.proto"],
+    cc_deps = ["@com_google_protobuf//:cc_wkt_protos"],
+    visibility = ["//mediapipe:__subpackages__"],
+    deps = [":zoo_mutator_proto"],
 )
 
 proto_library(

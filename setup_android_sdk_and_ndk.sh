@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright 2019 The MediaPipe Authors.
+# Copyright 2019-2020 The MediaPipe Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,15 +17,16 @@
 # Script to setup Android SDK and NDK.
 # usage:
 # $ cd <mediapipe root dir>
-# $ chmod +x ./setup_android_sdk_and_ndk.sh
-# $ ./setup_android_sdk_and_ndk.sh ~/Android/Sdk ~/Android/Ndk r18b
+# $ bash ./setup_android_sdk_and_ndk.sh ~/Android/Sdk ~/Android/Ndk r18b
 
 set -e
 
 if [ "$(uname)" == "Darwin" ]; then
   platform="darwin"
+  platform_android_sdk="mac"
 elif [ "$(expr substr $(uname -s) 1 5)" == "Linux" ]; then
   platform="linux"
+  platform_android_sdk="linux"
 fi
 
 if [[ $ANDROID_HOME ]] && [[ $ANDROID_NDK_HOME ]]
@@ -47,8 +48,8 @@ fi
 
 if [ -z $2 ]
 then
-  echo "Warning: android_ndk_path (argument 2) is not specified. Fallback to ~/Android/Ndk/android-ndk-<NDK_VERSION>/"
-  android_ndk_path=$HOME"/Android/Ndk"
+  echo "Warning: android_ndk_path (argument 2) is not specified. Fallback to ~/Android/Sdk/ndk-bundle/android-ndk-<NDK_VERSION>/"
+  android_ndk_path=$HOME"/Android/Sdk/ndk-bundle"
 fi
 
 if [ -z $3 ]
@@ -59,15 +60,15 @@ fi
 
 if [ -d "$android_sdk_path" ]
 then
-  echo "Warning: android_sdk_path is non empty. Android SDK Installation will be ignored."
+  echo "Warning: android_sdk_path is non empty. Installation of the Android SDK will be skipped."
 else
   rm -rf /tmp/android_sdk/
   mkdir  /tmp/android_sdk/
-  curl https://dl.google.com/android/repository/sdk-tools-${platform}-4333796.zip -o /tmp/android_sdk/android_sdk.zip
-  unzip /tmp/android_sdk/android_sdk.zip -d /tmp/android_sdk/
+  curl https://dl.google.com/android/repository/commandlinetools-${platform_android_sdk}-6609375_latest.zip -o /tmp/android_sdk/commandline_tools.zip
+  unzip /tmp/android_sdk/commandline_tools.zip -d /tmp/android_sdk/
   mkdir -p $android_sdk_path
-  /tmp/android_sdk/tools/bin/sdkmanager --update
-  /tmp/android_sdk/tools/bin/sdkmanager "build-tools;28.0.3" "platform-tools" "platforms;android-28" "extras;android;m2repository" --sdk_root=${android_sdk_path}
+  /tmp/android_sdk/tools/bin/sdkmanager --update --sdk_root=${android_sdk_path}
+  /tmp/android_sdk/tools/bin/sdkmanager "build-tools;29.0.1" "platform-tools" "platforms;android-29" --sdk_root=${android_sdk_path}
   rm -rf /tmp/android_sdk/
   echo "Android SDK is now installed. Consider setting \$ANDROID_HOME environment variable to be ${android_sdk_path}"
 fi
@@ -93,7 +94,6 @@ ndk_path_line=$((ndk_block+2))'i'
 sdk_block=$(grep -n 'android_sdk_repository(' $workspace_file | awk -F  ":" '{print $1}')
 sdk_path_line=$((sdk_block+3))'i'
 
-git checkout $workspace_file
 if [ $platform == "darwin" ]; then
   sed -i -e "$ndk_path_line\\
   \ \ \ \ path = \"${android_ndk_path}/android-ndk-${ndk_version}\",

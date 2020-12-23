@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-licenses(["notice"])  # Apache 2.0
+licenses(["notice"])
 
 package(default_visibility = ["//mediapipe/examples:__subpackages__"])
 
@@ -35,5 +35,6 @@ cc_binary(
     deps = [
         ":run_graph_file_io_main",
         "//mediapipe/graphs/media_sequence:clipped_images_from_file_at_24fps_calculators",
+        "//mediapipe/graphs/media_sequence:tvl1_flow_and_rgb_from_file_calculators",
     ],
 )

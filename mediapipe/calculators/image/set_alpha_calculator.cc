@@ -25,11 +25,11 @@
 #include "mediapipe/framework/port/status.h"
 #include "mediapipe/framework/port/vector.h"
 
-#if defined(__ANDROID__)
+#if !defined(MEDIAPIPE_DISABLE_GPU)
 #include "mediapipe/gpu/gl_calculator_helper.h"
 #include "mediapipe/gpu/gl_simple_shaders.h"
 #include "mediapipe/gpu/shader_util.h"
-#endif  // __ANDROID__
+#endif  //  !MEDIAPIPE_DISABLE_GPU
 
 namespace mediapipe {
 
@@ -87,91 +87,100 @@ class SetAlphaCalculator : public CalculatorBase {
   SetAlphaCalculator() = default;
   ~SetAlphaCalculator() override = default;
 
-  static ::mediapipe::Status GetContract(CalculatorContract* cc);
+  static mediapipe::Status GetContract(CalculatorContract* cc);
 
   // From Calculator.
-  ::mediapipe::Status Open(CalculatorContext* cc) override;
-  ::mediapipe::Status Process(CalculatorContext* cc) override;
-  ::mediapipe::Status Close(CalculatorContext* cc) override;
+  mediapipe::Status Open(CalculatorContext* cc) override;
+  mediapipe::Status Process(CalculatorContext* cc) override;
+  mediapipe::Status Close(CalculatorContext* cc) override;
 
  private:
-  ::mediapipe::Status RenderGpu(CalculatorContext* cc);
-  ::mediapipe::Status RenderCpu(CalculatorContext* cc);
+  mediapipe::Status RenderGpu(CalculatorContext* cc);
+  mediapipe::Status RenderCpu(CalculatorContext* cc);
 
-  ::mediapipe::Status GlRender(CalculatorContext* cc);
-  ::mediapipe::Status GlSetup(CalculatorContext* cc);
+  mediapipe::Status GlSetup(CalculatorContext* cc);
+  void GlRender(CalculatorContext* cc);
 
   mediapipe::SetAlphaCalculatorOptions options_;
   float alpha_value_ = -1.f;
 
   bool use_gpu_ = false;
   bool gpu_initialized_ = false;
-#if defined(__ANDROID__)
+#if !defined(MEDIAPIPE_DISABLE_GPU)
   mediapipe::GlCalculatorHelper gpu_helper_;
   GLuint program_ = 0;
-#endif  // __ANDROID__
+#endif  //  !MEDIAPIPE_DISABLE_GPU
 };
 REGISTER_CALCULATOR(SetAlphaCalculator);
 
-::mediapipe::Status SetAlphaCalculator::GetContract(CalculatorContract* cc) {
+mediapipe::Status SetAlphaCalculator::GetContract(CalculatorContract* cc) {
   CHECK_GE(cc->Inputs().NumEntries(), 1);
+
+  bool use_gpu = false;
 
   if (cc->Inputs().HasTag(kInputFrameTag) &&
       cc->Inputs().HasTag(kInputFrameTagGpu)) {
-    return ::mediapipe::InternalError("Cannot have multiple input images.");
+    return mediapipe::InternalError("Cannot have multiple input images.");
   }
   if (cc->Inputs().HasTag(kInputFrameTagGpu) !=
       cc->Outputs().HasTag(kOutputFrameTagGpu)) {
-    return ::mediapipe::InternalError("GPU output must have GPU input.");
+    return mediapipe::InternalError("GPU output must have GPU input.");
   }
 
   // Input image to add/edit alpha channel.
-#if defined(__ANDROID__)
+#if !defined(MEDIAPIPE_DISABLE_GPU)
   if (cc->Inputs().HasTag(kInputFrameTagGpu)) {
     cc->Inputs().Tag(kInputFrameTagGpu).Set<mediapipe::GpuBuffer>();
+    use_gpu |= true;
   }
-#endif  // __ANDROID__
+#endif  //  !MEDIAPIPE_DISABLE_GPU
   if (cc->Inputs().HasTag(kInputFrameTag)) {
     cc->Inputs().Tag(kInputFrameTag).Set<ImageFrame>();
   }
 
   // Input alpha image mask (optional)
-#if defined(__ANDROID__)
+#if !defined(MEDIAPIPE_DISABLE_GPU)
   if (cc->Inputs().HasTag(kInputAlphaTagGpu)) {
     cc->Inputs().Tag(kInputAlphaTagGpu).Set<mediapipe::GpuBuffer>();
+    use_gpu |= true;
   }
-#endif  // __ANDROID__
+#endif  //  !MEDIAPIPE_DISABLE_GPU
   if (cc->Inputs().HasTag(kInputAlphaTag)) {
     cc->Inputs().Tag(kInputAlphaTag).Set<ImageFrame>();
   }
 
   // RGBA output image.
-#if defined(__ANDROID__)
+#if !defined(MEDIAPIPE_DISABLE_GPU)
   if (cc->Outputs().HasTag(kOutputFrameTagGpu)) {
     cc->Outputs().Tag(kOutputFrameTagGpu).Set<mediapipe::GpuBuffer>();
+    use_gpu |= true;
   }
-#endif  // __ANDROID__
+#endif  //  !MEDIAPIPE_DISABLE_GPU
   if (cc->Outputs().HasTag(kOutputFrameTag)) {
     cc->Outputs().Tag(kOutputFrameTag).Set<ImageFrame>();
   }
 
-#if defined(__ANDROID__)
-  RETURN_IF_ERROR(mediapipe::GlCalculatorHelper::UpdateContract(cc));
-#endif  // __ANDROID__
+  if (use_gpu) {
+#if !defined(MEDIAPIPE_DISABLE_GPU)
+    MP_RETURN_IF_ERROR(mediapipe::GlCalculatorHelper::UpdateContract(cc));
+#endif  //  !MEDIAPIPE_DISABLE_GPU
+  }
 
-  return ::mediapipe::OkStatus();
+  return mediapipe::OkStatus();
 }
 
-::mediapipe::Status SetAlphaCalculator::Open(CalculatorContext* cc) {
+mediapipe::Status SetAlphaCalculator::Open(CalculatorContext* cc) {
+  cc->SetOffset(TimestampDiff(0));
+
   options_ = cc->Options<mediapipe::SetAlphaCalculatorOptions>();
 
   if (cc->Inputs().HasTag(kInputFrameTagGpu) &&
       cc->Outputs().HasTag(kOutputFrameTagGpu)) {
-#if defined(__ANDROID__)
+#if !defined(MEDIAPIPE_DISABLE_GPU)
     use_gpu_ = true;
 #else
-    RET_CHECK_FAIL() << "GPU processing on non-Android not supported yet.";
-#endif  // __ANDROID__
+    RET_CHECK_FAIL() << "GPU processing not enabled.";
+#endif  //  !MEDIAPIPE_DISABLE_GPU
   }
 
   // Get global value from options (-1 if not set).
@@ -184,48 +193,48 @@ REGISTER_CALCULATOR(SetAlphaCalculator);
     RET_CHECK_FAIL() << "Must use either image mask or options alpha value.";
 
   if (use_gpu_) {
-#if defined(__ANDROID__)
-    RETURN_IF_ERROR(gpu_helper_.Open(cc));
+#if !defined(MEDIAPIPE_DISABLE_GPU)
+    MP_RETURN_IF_ERROR(gpu_helper_.Open(cc));
 #endif
-  }
+  }  //  !MEDIAPIPE_DISABLE_GPU
 
-  return ::mediapipe::OkStatus();
+  return mediapipe::OkStatus();
 }
 
-::mediapipe::Status SetAlphaCalculator::Process(CalculatorContext* cc) {
+mediapipe::Status SetAlphaCalculator::Process(CalculatorContext* cc) {
   if (use_gpu_) {
-#if defined(__ANDROID__)
-    RETURN_IF_ERROR(
-        gpu_helper_.RunInGlContext([this, cc]() -> ::mediapipe::Status {
+#if !defined(MEDIAPIPE_DISABLE_GPU)
+    MP_RETURN_IF_ERROR(
+        gpu_helper_.RunInGlContext([this, cc]() -> mediapipe::Status {
           if (!gpu_initialized_) {
-            RETURN_IF_ERROR(GlSetup(cc));
+            MP_RETURN_IF_ERROR(GlSetup(cc));
             gpu_initialized_ = true;
           }
-          RETURN_IF_ERROR(RenderGpu(cc));
-          return ::mediapipe::OkStatus();
+          MP_RETURN_IF_ERROR(RenderGpu(cc));
+          return mediapipe::OkStatus();
         }));
-#endif  // __ANDROID__
+#endif  //  !MEDIAPIPE_DISABLE_GPU
   } else {
-    RETURN_IF_ERROR(RenderCpu(cc));
+    MP_RETURN_IF_ERROR(RenderCpu(cc));
   }
 
-  return ::mediapipe::OkStatus();
+  return mediapipe::OkStatus();
 }
 
-::mediapipe::Status SetAlphaCalculator::Close(CalculatorContext* cc) {
-#if defined(__ANDROID__)
+mediapipe::Status SetAlphaCalculator::Close(CalculatorContext* cc) {
+#if !defined(MEDIAPIPE_DISABLE_GPU)
   gpu_helper_.RunInGlContext([this] {
     if (program_) glDeleteProgram(program_);
     program_ = 0;
   });
-#endif  // __ANDROID__
+#endif  //  !MEDIAPIPE_DISABLE_GPU
 
-  return ::mediapipe::OkStatus();
+  return mediapipe::OkStatus();
 }
 
-::mediapipe::Status SetAlphaCalculator::RenderCpu(CalculatorContext* cc) {
+mediapipe::Status SetAlphaCalculator::RenderCpu(CalculatorContext* cc) {
   if (cc->Inputs().Tag(kInputFrameTag).IsEmpty()) {
-    return ::mediapipe::OkStatus();
+    return mediapipe::OkStatus();
   }
 
   // Setup source image
@@ -285,14 +294,14 @@ REGISTER_CALCULATOR(SetAlphaCalculator);
       .Tag(kOutputFrameTag)
       .Add(output_frame.release(), cc->InputTimestamp());
 
-  return ::mediapipe::OkStatus();
+  return mediapipe::OkStatus();
 }
 
-::mediapipe::Status SetAlphaCalculator::RenderGpu(CalculatorContext* cc) {
+mediapipe::Status SetAlphaCalculator::RenderGpu(CalculatorContext* cc) {
   if (cc->Inputs().Tag(kInputFrameTagGpu).IsEmpty()) {
-    return ::mediapipe::OkStatus();
+    return mediapipe::OkStatus();
   }
-#if defined(__ANDROID__)
+#if !defined(MEDIAPIPE_DISABLE_GPU)
   // Setup source texture.
   const auto& input_frame =
       cc->Inputs().Tag(kInputFrameTagGpu).Get<mediapipe::GpuBuffer>();
@@ -345,13 +354,13 @@ REGISTER_CALCULATOR(SetAlphaCalculator);
   // Cleanup
   input_texture.Release();
   output_texture.Release();
-#endif  // __ANDROID__
+#endif  //  !MEDIAPIPE_DISABLE_GPU
 
-  return ::mediapipe::OkStatus();
+  return mediapipe::OkStatus();
 }
 
-::mediapipe::Status SetAlphaCalculator::GlRender(CalculatorContext* cc) {
-#if defined(__ANDROID__)
+void SetAlphaCalculator::GlRender(CalculatorContext* cc) {
+#if !defined(MEDIAPIPE_DISABLE_GPU)
   static const GLfloat square_vertices[] = {
       -1.0f, -1.0f,  // bottom left
       1.0f,  -1.0f,  // bottom right
@@ -400,13 +409,11 @@ REGISTER_CALCULATOR(SetAlphaCalculator);
   glDeleteVertexArrays(1, &vao);
   glDeleteBuffers(2, vbo);
 
-#endif  // __ANDROID__
-
-  return ::mediapipe::OkStatus();
+#endif  //  !MEDIAPIPE_DISABLE_GPU
 }
 
-::mediapipe::Status SetAlphaCalculator::GlSetup(CalculatorContext* cc) {
-#if defined(__ANDROID__)
+mediapipe::Status SetAlphaCalculator::GlSetup(CalculatorContext* cc) {
+#if !defined(MEDIAPIPE_DISABLE_GPU)
   const GLint attr_location[NUM_ATTRIBUTES] = {
       ATTRIB_VERTEX,
       ATTRIB_TEXTURE_POSITION,
@@ -417,6 +424,7 @@ REGISTER_CALCULATOR(SetAlphaCalculator);
   };
 
   // Shader to overlay a texture onto another when overlay is non-zero.
+  // TODO split into two shaders to handle alpha_value<0 separately
   const GLchar* frag_src = GLES_VERSION_COMPAT
       R"(
   #if __VERSION__ < 130
@@ -458,9 +466,9 @@ REGISTER_CALCULATOR(SetAlphaCalculator);
   glUniform1i(glGetUniformLocation(program_, "alpha_mask"), 2);
   glUniform1f(glGetUniformLocation(program_, "alpha_value"), alpha_value_);
 
-#endif  // __ANDROID__
+#endif  //  !MEDIAPIPE_DISABLE_GPU
 
-  return ::mediapipe::OkStatus();
+  return mediapipe::OkStatus();
 }
 
 }  // namespace mediapipe

@@ -43,33 +43,32 @@ class PacketWithContext;
 // so that we can clean up or query later.
 class Graph {
  public:
-  // The Packet java class name.
-  static constexpr char const* kJavaPacketClassName =
-      "com/google/mediapipe/framework/Packet";
-
   Graph();
   Graph(const Graph&) = delete;
   Graph& operator=(const Graph&) = delete;
   ~Graph();
 
   // Adds a callback for a given stream name.
-  ::mediapipe::Status AddCallbackHandler(std::string output_stream_name,
-                                         jobject java_callback);
-
-  // Adds a packet with header callback for a given stream name.
-  ::mediapipe::Status AddCallbackWithHeaderHandler(
-      std::string output_stream_name, jobject java_callback);
+  mediapipe::Status AddCallbackHandler(std::string output_stream_name,
+                                       jobject java_callback);
 
   // Loads a binary graph from a file.
-  ::mediapipe::Status LoadBinaryGraph(std::string path_to_graph);
+  mediapipe::Status LoadBinaryGraph(std::string path_to_graph);
   // Loads a binary graph from a buffer.
-  ::mediapipe::Status LoadBinaryGraph(const char* data, int size);
-  // Gets the calculator graph config.
-  const CalculatorGraphConfig& GetCalculatorGraphConfig();
+  mediapipe::Status LoadBinaryGraph(const char* data, int size);
+  // Loads a binary graph template from a buffer.
+  mediapipe::Status LoadBinaryGraphTemplate(const char* data, int size);
+  // Specifies the CalculatorGraphConfig::type of the top level graph.
+  mediapipe::Status SetGraphType(std::string graph_type);
+  // Specifies options such as template arguments for the graph.
+  mediapipe::Status SetGraphOptions(const char* data, int size);
+
+  // Returns the expanded calculator graph config.
+  CalculatorGraphConfig GetCalculatorGraphConfig();
 
   // Runs the graph until it closes.
   // Mainly is used for writing tests.
-  ::mediapipe::Status RunGraphUntilClose(JNIEnv* env);
+  mediapipe::Status RunGraphUntilClose(JNIEnv* env);
 
   // The following 4 functions are used to run the graph in
   // step by step mode, the usual call sequence is like this:
@@ -82,26 +81,26 @@ class Graph {
   // wait until nothing is running and nothing can be scheduled.
   //
   // Starts running the graph.
-  ::mediapipe::Status StartRunningGraph(JNIEnv* env);
+  mediapipe::Status StartRunningGraph(JNIEnv* env);
   // Closes one input stream.
-  ::mediapipe::Status CloseInputStream(std::string stream_name);
+  mediapipe::Status CloseInputStream(std::string stream_name);
   // Closes all the graph input streams.
-  ::mediapipe::Status CloseAllInputStreams();
+  mediapipe::Status CloseAllInputStreams();
   // Closes all the graph packet sources.
-  ::mediapipe::Status CloseAllPacketSources();
+  mediapipe::Status CloseAllPacketSources();
   // Waits util graph is done.
-  ::mediapipe::Status WaitUntilDone(JNIEnv* env);
+  mediapipe::Status WaitUntilDone(JNIEnv* env);
   // Waits util graph is idle.
-  ::mediapipe::Status WaitUntilIdle(JNIEnv* env);
+  mediapipe::Status WaitUntilIdle(JNIEnv* env);
   // Adds a packet to an input stream.
-  ::mediapipe::Status AddPacketToInputStream(const std::string& stream_name,
-                                             const Packet& packet);
+  mediapipe::Status AddPacketToInputStream(const std::string& stream_name,
+                                           const Packet& packet);
   // Moves a packet into an input stream.
-  ::mediapipe::Status AddPacketToInputStream(const std::string& stream_name,
-                                             Packet&& packet);
+  mediapipe::Status AddPacketToInputStream(const std::string& stream_name,
+                                           Packet&& packet);
   // Takes the MediaPipe Packet referenced by the handle, sets its timestamp,
   // and then tries to move the Packet into the given input stream.
-  ::mediapipe::Status SetTimestampAndMovePacketToInputStream(
+  mediapipe::Status SetTimestampAndMovePacketToInputStream(
       const std::string& stream_name, int64_t packet_handle, int64_t timestamp);
 
   // Sets the mode for adding packets to a graph input stream.
@@ -128,7 +127,7 @@ class Graph {
   int64_t AddSurfaceOutput(const std::string& stream_name);
 
   // Sets a parent GL context to use for texture sharing.
-  ::mediapipe::Status SetParentGlContext(int64 java_gl_context);
+  mediapipe::Status SetParentGlContext(int64 java_gl_context);
 
   // Sets the object for a service.
   template <typename T>
@@ -170,9 +169,24 @@ class Graph {
   void EnsureMinimumExecutorStackSizeForJava();
   void SetPacketJavaClass(JNIEnv* env);
   std::map<std::string, Packet> CreateCombinedSidePackets();
+  // Returns the top-level CalculatorGraphConfig, or nullptr if the top-level
+  // CalculatorGraphConfig is not yet defined.
+  CalculatorGraphConfig* graph_config();
+  // Returns the top-level CalculatorGraphConfig::type, or "" if the top-level
+  // CalculatorGraphConfig::type is not yet defined.
+  std::string graph_type();
+  // Initializes CalculatorGraph |graph| using the loaded graph-configs.
+  mediapipe::Status InitializeGraph(CalculatorGraph* graph);
 
-  CalculatorGraphConfig graph_;
-  bool graph_loaded_;
+  // CalculatorGraphConfigs for the calculator graph and subgraphs.
+  std::vector<CalculatorGraphConfig> graph_configs_;
+  // CalculatorGraphTemplates for the calculator graph and subgraphs.
+  std::vector<CalculatorGraphTemplate> graph_templates_;
+  // Options such as template arguments for the top-level calculator graph.
+  Subgraph::SubgraphOptions graph_options_;
+  // The CalculatorGraphConfig::type of the top-level calculator graph.
+  std::string graph_type_ = "<none>";
+
   // Used by EnsureMinimumExecutorStackSizeForJava() to ensure that the
   // default executor's stack size is increased only once.
   bool executor_stack_size_increased_;

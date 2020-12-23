@@ -28,29 +28,29 @@ namespace mediapipe {
 //
 // Typical topology:
 //
-// in ->-[RTFLC]-[foo]-...-[bar]-+->- out
-//          ^____________________|
-//       FINISHED
+// in ->-[FLC]-[foo]-...-[bar]-+->- out
+//         ^_____________________|
+//      FINISHED
 //
 // By connecting the output of the graph section to this calculator's FINISHED
-// input with a backwards edge, this allows RTFLC to keep track of how many
+// input with a backwards edge, this allows FLC to keep track of how many
 // timestamps are currently being processed.
 //
 // The limit defaults to 1, and can be overridden with the MAX_IN_FLIGHT side
 // packet.
 //
 // As long as the number of timestamps being processed ("in flight") is below
-// the limit, RTFLC allows input to pass through. When the limit is reached,
-// RTFLC starts dropping input packets, keeping only the most recent. When the
+// the limit, FLC allows input to pass through. When the limit is reached,
+// FLC starts dropping input packets, keeping only the most recent. When the
 // processing count decreases again, as signaled by the receipt of a packet on
-// FINISHED, RTFLC allows packets to flow again, releasing the most recently
+// FINISHED, FLC allows packets to flow again, releasing the most recently
 // queued packet, if any.
 //
 // If there are multiple input streams, packet dropping is synchronized.
 //
-// IMPORTANT: for each timestamp where RTFLC forwards a packet (or a set of
+// IMPORTANT: for each timestamp where FLC forwards a packet (or a set of
 // packets, if using multiple data streams), a packet must eventually arrive on
-// the FINISHED stream. Dropping packets in the section between RTFLC and
+// the FINISHED stream. Dropping packets in the section between FLC and
 // FINISHED will make the in-flight count incorrect.
 //
 // TODO: Remove this comment when graph-level ISH has been removed.
@@ -75,7 +75,7 @@ namespace mediapipe {
 // }
 class RealTimeFlowLimiterCalculator : public CalculatorBase {
  public:
-  static ::mediapipe::Status GetContract(CalculatorContract* cc) {
+  static mediapipe::Status GetContract(CalculatorContract* cc) {
     int num_data_streams = cc->Inputs().NumEntries("");
     RET_CHECK_GE(num_data_streams, 1);
     RET_CHECK_EQ(cc->Outputs().NumEntries(""), num_data_streams)
@@ -95,10 +95,10 @@ class RealTimeFlowLimiterCalculator : public CalculatorBase {
 
     cc->SetInputStreamHandler("ImmediateInputStreamHandler");
 
-    return ::mediapipe::OkStatus();
+    return mediapipe::OkStatus();
   }
 
-  ::mediapipe::Status Open(CalculatorContext* cc) final {
+  mediapipe::Status Open(CalculatorContext* cc) final {
     finished_id_ = cc->Inputs().GetId("FINISHED", 0);
     max_in_flight_ = 1;
     if (cc->InputSidePackets().HasTag("MAX_IN_FLIGHT")) {
@@ -113,12 +113,12 @@ class RealTimeFlowLimiterCalculator : public CalculatorBase {
     num_data_streams_ = cc->Inputs().NumEntries("");
     data_stream_bound_ts_.resize(num_data_streams_);
     RET_CHECK_OK(CopyInputHeadersToOutputs(cc->Inputs(), &(cc->Outputs())));
-    return ::mediapipe::OkStatus();
+    return mediapipe::OkStatus();
   }
 
   bool Allow() { return num_in_flight_ < max_in_flight_; }
 
-  ::mediapipe::Status Process(CalculatorContext* cc) final {
+  mediapipe::Status Process(CalculatorContext* cc) final {
     bool old_allow = Allow();
     Timestamp lowest_incomplete_ts = Timestamp::Done();
 
@@ -180,7 +180,7 @@ class RealTimeFlowLimiterCalculator : public CalculatorBase {
           .Get(allowed_id_)
           .AddPacket(MakePacket<bool>(Allow()).At(++allow_ctr_ts_));
     }
-    return ::mediapipe::OkStatus();
+    return mediapipe::OkStatus();
   }
 
  private:

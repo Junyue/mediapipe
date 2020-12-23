@@ -23,10 +23,7 @@
 #if defined(__APPLE__)
 #include <CoreVideo/CoreVideo.h>
 
-#include "mediapipe/framework/ios/CFHolder.h"
-#if !TARGET_OS_OSX
-#define MEDIAPIPE_GPU_BUFFER_USE_CV_PIXEL_BUFFER 1
-#endif  // TARGET_OS_OSX
+#include "mediapipe/objc/CFHolder.h"
 #endif  // defined(__APPLE__)
 
 #if !MEDIAPIPE_GPU_BUFFER_USE_CV_PIXEL_BUFFER
@@ -72,7 +69,6 @@ class GpuBuffer {
 
   int width() const;
   int height() const;
-
   GpuBufferFormat format() const;
 
   // Converts to true iff valid.

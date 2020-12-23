@@ -76,7 +76,7 @@ TEST(CollectionTest, MixedTagAndIndexUsage) {
   auto tags_statusor =
       tool::CreateTagMap({"TAG_A:a", "TAG_B:1:b", "TAG_A:2:c", "TAG_B:d",
                           "TAG_C:0:e", "TAG_A:1:f"});
-  MEDIAPIPE_ASSERT_OK(tags_statusor);
+  MP_ASSERT_OK(tags_statusor);
 
   internal::Collection<int> collection1(std::move(tags_statusor.ValueOrDie()));
   collection1.Get("TAG_A", 0) = 100;
@@ -183,7 +183,7 @@ TEST(CollectionTest, StaticEmptyCollectionHeapCheck) {
 }
 
 template <typename T>
-::mediapipe::Status TestCollectionWithPointers(
+mediapipe::Status TestCollectionWithPointers(
     const std::vector<T>& original_values, const T& inject1, const T& inject2) {
   std::shared_ptr<tool::TagMap> tag_map =
       tool::CreateTagMap({"TAG_A:a", "TAG_B:1:b", "TAG_A:2:c", "TAG_B:d",
@@ -218,10 +218,11 @@ template <typename T>
     EXPECT_EQ(values[5], collection_ptr->Get("TAG_C", 0));
 
     // Test const-ness.
-    EXPECT_EQ(false, std::is_const<typename std::remove_reference<decltype(
-                         collection.Get("TAG_A", 0))>::type>::value);
-    EXPECT_EQ(true, std::is_const<typename std::remove_reference<decltype(
-                        collection_ptr->Get("TAG_A", 0))>::type>::value);
+    EXPECT_EQ(false, std::is_const<typename std::remove_reference<
+                         decltype(collection.Get("TAG_A", 0))>::type>::value);
+    EXPECT_EQ(true,
+              std::is_const<typename std::remove_reference<
+                  decltype(collection_ptr->Get("TAG_A", 0))>::type>::value);
 
     // Test access using a range based for.
     int i = 0;
@@ -278,10 +279,11 @@ template <typename T>
     EXPECT_EQ(values[5], collection_ptr->Get("TAG_C", 0));
 
     // Test const-ness.
-    EXPECT_EQ(false, std::is_const<typename std::remove_reference<decltype(
-                         collection.Get("TAG_A", 0))>::type>::value);
-    EXPECT_EQ(true, std::is_const<typename std::remove_reference<decltype(
-                        collection_ptr->Get("TAG_A", 0))>::type>::value);
+    EXPECT_EQ(false, std::is_const<typename std::remove_reference<
+                         decltype(collection.Get("TAG_A", 0))>::type>::value);
+    EXPECT_EQ(true,
+              std::is_const<typename std::remove_reference<
+                  decltype(collection_ptr->Get("TAG_A", 0))>::type>::value);
 
     // Test access using a range based for.
     int i = 0;
@@ -309,10 +311,10 @@ template <typename T>
       // storage == kStoreValue.
       EXPECT_EQ(&values[i], collection_ptr->GetPtr(id));
       EXPECT_EQ(values[i], *collection_ptr->GetPtr(id));
-      EXPECT_EQ(false, std::is_const<typename std::remove_reference<decltype(
-                           *collection.GetPtr(id))>::type>::value);
-      EXPECT_EQ(true, std::is_const<typename std::remove_reference<decltype(
-                          *collection_ptr->GetPtr(id))>::type>::value);
+      EXPECT_EQ(false, std::is_const<typename std::remove_reference<
+                           decltype(*collection.GetPtr(id))>::type>::value);
+      EXPECT_EQ(true, std::is_const<typename std::remove_reference<
+                          decltype(*collection_ptr->GetPtr(id))>::type>::value);
       ++i;
     }
 
@@ -386,10 +388,11 @@ template <typename T>
     EXPECT_EQ(&values[5], collection_ptr->Get("TAG_C", 0));
 
     // Test const-ness.
-    EXPECT_EQ(false, std::is_const<typename std::remove_reference<decltype(
-                         collection.Get("TAG_A", 0))>::type>::value);
-    EXPECT_EQ(true, std::is_const<typename std::remove_reference<decltype(
-                        collection_ptr->Get("TAG_A", 0))>::type>::value);
+    EXPECT_EQ(false, std::is_const<typename std::remove_reference<
+                         decltype(collection.Get("TAG_A", 0))>::type>::value);
+    EXPECT_EQ(true,
+              std::is_const<typename std::remove_reference<
+                  decltype(collection_ptr->Get("TAG_A", 0))>::type>::value);
 
     // Test access using a range based for.
     int i = 0;
@@ -448,13 +451,12 @@ template <typename T>
       ++i;
     }
   }
-  return ::mediapipe::OkStatus();
+  return mediapipe::OkStatus();
 }
 
 TEST(CollectionTest, TestCollectionWithPointersIntAndString) {
-  MEDIAPIPE_ASSERT_OK(
-      TestCollectionWithPointers<int>({3, 7, -2, 0, 4, -3}, 17, 10));
-  MEDIAPIPE_ASSERT_OK(TestCollectionWithPointers<std::string>(
+  MP_ASSERT_OK(TestCollectionWithPointers<int>({3, 7, -2, 0, 4, -3}, 17, 10));
+  MP_ASSERT_OK(TestCollectionWithPointers<std::string>(
       {"a0", "a1", "a2", "b0", "b1", "c0"}, "inject1", "inject2"));
 }
 
@@ -474,8 +476,8 @@ TEST(CollectionTest, TestIteratorFunctions) {
   collection.GetPtr(collection.GetId("TAG_B", 1)) = &values[4];
   collection.GetPtr(collection.GetId("TAG_C", 0)) = &values[5];
 
-  EXPECT_EQ(false, std::is_const<typename std::remove_reference<decltype(
-                       collection.begin())>::type>::value);
+  EXPECT_EQ(false, std::is_const<typename std::remove_reference<
+                       decltype(collection.begin())>::type>::value);
   EXPECT_EQ(values[0], *collection.begin());
   EXPECT_EQ(false, collection.begin()->empty());
   EXPECT_EQ(false, (*collection.begin()).empty());
@@ -484,8 +486,8 @@ TEST(CollectionTest, TestIteratorFunctions) {
 
   const auto* collection_ptr = &collection;
 
-  EXPECT_EQ(true, std::is_const<typename std::remove_reference<decltype(
-                      *collection_ptr->begin())>::type>::value);
+  EXPECT_EQ(true, std::is_const<typename std::remove_reference<
+                      decltype(*collection_ptr->begin())>::type>::value);
   EXPECT_EQ(values[0], *collection_ptr->begin());
   EXPECT_EQ(false, collection_ptr->begin()->empty());
   EXPECT_EQ(false, (*collection_ptr->begin()).empty());

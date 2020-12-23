@@ -19,6 +19,7 @@
 #include "mediapipe/framework/formats/location.h"
 #include "mediapipe/framework/port/ret_check.h"
 #include "mediapipe/framework/port/status.h"
+#include "mediapipe/util/audio_decoder.pb.h"
 #include "mediapipe/util/sequence/media_sequence.h"
 #include "tensorflow/core/example/example.pb.h"
 #include "tensorflow/core/example/feature.pb.h"
@@ -28,6 +29,7 @@ namespace mediapipe {
 // Streams:
 const char kBBoxTag[] = "BBOX";
 const char kImageTag[] = "IMAGE";
+const char kKeypointsTag[] = "KEYPOINTS";
 const char kFloatFeaturePrefixTag[] = "FLOAT_FEATURE_";
 const char kForwardFlowImageTag[] = "FORWARD_FLOW_ENCODED";
 
@@ -37,9 +39,10 @@ const char kDatasetRootDirTag[] = "DATASET_ROOT";
 const char kDataPath[] = "DATA_PATH";
 const char kPacketResamplerOptions[] = "RESAMPLER_OPTIONS";
 const char kImagesFrameRateTag[] = "IMAGE_FRAME_RATE";
+const char kAudioDecoderOptions[] = "AUDIO_DECODER_OPTIONS";
 
 namespace tf = ::tensorflow;
-namespace mpms = ::mediapipe::mediasequence;
+namespace mpms = mediapipe::mediasequence;
 
 // Source calculator to unpack side_packets and streams from tf.SequenceExamples
 //
@@ -81,7 +84,7 @@ namespace mpms = ::mediapipe::mediasequence;
 // node {
 //   calculator: "UnpackMediaSequenceCalculator"
 //   input_side_packet: "SEQUENCE_EXAMPLE:example_input_side_packet"
-//   input_side_packet: "ROOT_DIRECTORY:path_to_dataset_root_directory"
+//   input_side_packet: "DATASET_ROOT:path_to_dataset_root_directory"
 //   output_side_packet: "DATA_PATH:full_path_to_data_element"
 //   output_side_packet: "RESAMPLER_OPTIONS:packet_resampler_options"
 //   options {
@@ -126,6 +129,11 @@ class UnpackMediaSequenceCalculator : public CalculatorBase {
     if (cc->OutputSidePackets().HasTag(kDataPath)) {
       cc->OutputSidePackets().Tag(kDataPath).Set<std::string>();
     }
+    if (cc->OutputSidePackets().HasTag(kAudioDecoderOptions)) {
+      cc->OutputSidePackets()
+          .Tag(kAudioDecoderOptions)
+          .Set<AudioDecoderOptions>();
+    }
     if (cc->OutputSidePackets().HasTag(kImagesFrameRateTag)) {
       cc->OutputSidePackets().Tag(kImagesFrameRateTag).Set<double>();
     }
@@ -136,13 +144,13 @@ class UnpackMediaSequenceCalculator : public CalculatorBase {
     }
     if ((options.has_padding_before_label() ||
          options.has_padding_after_label()) &&
-        !(cc->OutputSidePackets().HasTag(kPacketResamplerOptions))) {
+        !(cc->OutputSidePackets().HasTag(kAudioDecoderOptions) ||
+          cc->OutputSidePackets().HasTag(kPacketResamplerOptions))) {
       return ::mediapipe::InvalidArgumentErrorBuilder(MEDIAPIPE_LOC)
-             << "If specifying padding, must output "
-             << kPacketResamplerOptions;
+             << "If specifying padding, must output " << kPacketResamplerOptions
+             << "or" << kAudioDecoderOptions;
     }
 
-    // Optional streams.
     if (cc->Outputs().HasTag(kForwardFlowImageTag)) {
       cc->Outputs().Tag(kForwardFlowImageTag).Set<std::string>();
     }
@@ -232,11 +240,14 @@ class UnpackMediaSequenceCalculator : public CalculatorBase {
     current_timestamp_index_ = 0;
 
     // Determine the data path and output it.
-    const auto& options =
-        cc->Options().GetExtension(UnpackMediaSequenceCalculatorOptions::ext);
+    const auto& options = cc->Options<UnpackMediaSequenceCalculatorOptions>();
     const auto& sequence = cc->InputSidePackets()
                                .Tag(kSequenceExampleTag)
                                .Get<tensorflow::SequenceExample>();
+    if (cc->Outputs().HasTag(kKeypointsTag)) {
+      keypoint_names_ = absl::StrSplit(options.keypoint_names(), ',');
+      default_keypoint_location_ = options.default_keypoint_location();
+    }
     if (cc->OutputSidePackets().HasTag(kDataPath)) {
       std::string root_directory = "";
       if (cc->InputSidePackets().HasTag(kDatasetRootDirTag)) {
@@ -261,7 +272,8 @@ class UnpackMediaSequenceCalculator : public CalculatorBase {
     // Set the start and end of the clip in the appropriate options protos.
     double start_time = 0;
     double end_time = 0;
-    if (cc->OutputSidePackets().HasTag(kPacketResamplerOptions)) {
+    if (cc->OutputSidePackets().HasTag(kAudioDecoderOptions) ||
+        cc->OutputSidePackets().HasTag(kPacketResamplerOptions)) {
       if (mpms::HasClipStartTimestamp(sequence)) {
         start_time =
             Timestamp(mpms::GetClipStartTimestamp(sequence)).Seconds() -
@@ -271,6 +283,27 @@ class UnpackMediaSequenceCalculator : public CalculatorBase {
         end_time = Timestamp(mpms::GetClipEndTimestamp(sequence)).Seconds() +
                    options.padding_after_label();
       }
+    }
+    if (cc->OutputSidePackets().HasTag(kAudioDecoderOptions)) {
+      auto audio_decoder_options = absl::make_unique<AudioDecoderOptions>(
+          options.base_audio_decoder_options());
+      if (mpms::HasClipStartTimestamp(sequence)) {
+        if (options.force_decoding_from_start_of_media()) {
+          audio_decoder_options->set_start_time(0);
+        } else {
+          audio_decoder_options->set_start_time(
+              start_time - options.extra_padding_from_media_decoder());
+        }
+      }
+      if (mpms::HasClipEndTimestamp(sequence)) {
+        audio_decoder_options->set_end_time(
+            end_time + options.extra_padding_from_media_decoder());
+      }
+      LOG(INFO) << "Created AudioDecoderOptions:\n"
+                << audio_decoder_options->DebugString();
+      cc->OutputSidePackets()
+          .Tag(kAudioDecoderOptions)
+          .Set(Adopt(audio_decoder_options.release()));
     }
     if (cc->OutputSidePackets().HasTag(kPacketResamplerOptions)) {
       auto resampler_options = absl::make_unique<CalculatorOptions>();
@@ -328,7 +361,6 @@ class UnpackMediaSequenceCalculator : public CalculatorBase {
       end_timestamp =
           timestamps_[last_timestamp_key_][current_timestamp_index_ + 1];
     }
-
     for (const auto& map_kv : timestamps_) {
       for (int i = 0; i < map_kv.second.size(); ++i) {
         if (map_kv.second[i] >= start_timestamp &&
@@ -338,7 +370,6 @@ class UnpackMediaSequenceCalculator : public CalculatorBase {
                   ? Timestamp::PostStream()
                   : Timestamp(map_kv.second[i]);
 
-          LOG(INFO) << "key: " << map_kv.first;
           if (absl::StrContains(map_kv.first, mpms::GetImageTimestampKey())) {
             std::vector<std::string> pieces = absl::StrSplit(map_kv.first, '/');
             std::string feature_key = "";
@@ -426,6 +457,10 @@ class UnpackMediaSequenceCalculator : public CalculatorBase {
   int current_timestamp_index_;
   // Store the very first timestamp, so we output everything on the first frame.
   int64 first_timestamp_seen_;
+  // List of keypoint names.
+  std::vector<std::string> keypoint_names_;
+  // Default keypoint location when missing.
+  float default_keypoint_location_;
 };
 REGISTER_CALCULATOR(UnpackMediaSequenceCalculator);
 }  // namespace mediapipe

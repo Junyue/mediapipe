@@ -11,14 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-licenses(["notice"])  # Apache 2.0
+licenses(["notice"])
 
 package(default_visibility = ["//mediapipe/framework:__subpackages__"])
 
 # This is used to enable the profiler on platforms where it is not on by default.
-# To enable, pass --define=MEDIAPIPE_PROFILING=1 to bazel.
+# To enable, pass --define MEDIAPIPE_PROFILING=1 to bazel.
 config_setting(
     name = "graph_profiler_enabled",
     values = {
@@ -116,6 +115,7 @@ cc_library(
         "//mediapipe/framework/port:logging",
         "//mediapipe/framework/port:ret_check",
         "//mediapipe/framework/port:status",
+        "//mediapipe/framework/tool:name_util",
         "//mediapipe/framework/tool:tag_map",
         "//mediapipe/framework/tool:validate_name",
         "@com_google_absl//absl/memory",
@@ -185,6 +185,7 @@ cc_library(
         "//mediapipe/framework:packet",
         "//mediapipe/framework:timestamp",
         "//mediapipe/framework/port:integral_types",
+        "@com_google_absl//absl/container:node_hash_map",
         "@com_google_absl//absl/time",
     ],
 )
@@ -223,9 +224,10 @@ cc_test(
         ":graph_profiler",
         ":graph_tracer",
         ":test_context_builder",
+        "//mediapipe/calculators/core:flow_limiter_calculator",
         "//mediapipe/calculators/core:immediate_mux_calculator",
-        "//mediapipe/calculators/core:real_time_flow_limiter_calculator",
         "//mediapipe/calculators/core:round_robin_demux_calculator",
+        "//mediapipe/calculators/util:annotation_overlay_calculator",
         "//mediapipe/framework:calculator_cc_proto",
         "//mediapipe/framework:calculator_framework",
         "//mediapipe/framework:calculator_profile_cc_proto",
@@ -258,6 +260,7 @@ cc_test(
         "//mediapipe/framework/port:integral_types",
         "//mediapipe/framework/port:logging",
         "//mediapipe/framework/port:threadpool",
+        "@com_google_absl//absl/container:node_hash_map",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
     ],
@@ -265,25 +268,61 @@ cc_test(
 
 cc_library(
     name = "profiler_resource_util",
-    srcs = select({
+    srcs = ["profiler_resource_util_common.cc"] + select({
         "//conditions:default": ["profiler_resource_util.cc"],
         "//mediapipe:android": ["profiler_resource_util_android.cc"],
+        "//mediapipe:ios": ["profiler_resource_util_ios.cc"],
     }),
     hdrs = ["profiler_resource_util.h"],
     # We use Objective-C++ on iOS.
+    copts = select({
+        "//conditions:default": [],
+        "//mediapipe:ios": [
+            "-ObjC++",
+        ],
+    }),
     visibility = [
         "//mediapipe/framework:mediapipe_internal",
     ],
     deps = [
         "@com_google_absl//absl/strings",
         "//mediapipe/framework/port:logging",
+        "//mediapipe/framework/port:ret_check",
         "//mediapipe/framework/port:statusor",
         "//mediapipe/framework/port:status",
+        "@com_google_absl//absl/flags:flag",
+        "//mediapipe/framework/deps:file_path",
     ] + select({
         "//conditions:default": [
+            "//mediapipe/framework/port:file_helpers",
         ],
         "//mediapipe:android": [
             "//mediapipe/java/com/google/mediapipe/framework/jni:jni_util",
+            "//mediapipe/util/android/file/base",
+        ],
+        "//mediapipe:apple": [
+            "//mediapipe/framework/port:file_helpers",
         ],
     }),
+)
+
+cc_test(
+    name = "reporter_test",
+    srcs = ["reporter_test.cc"],
+    data = [
+        "//mediapipe/framework/profiler/testdata:mediapipe_profile_graphs",
+    ],
+    visibility = ["//visibility:private"],
+    deps = [
+        "//mediapipe/framework:calculator_cc_proto",
+        "//mediapipe/framework:calculator_profile_cc_proto",
+        "//mediapipe/framework/deps:file_path",
+        "//mediapipe/framework/port:advanced_proto",
+        "//mediapipe/framework/port:gtest_main",
+        "//mediapipe/framework/port:parse_text_proto",
+        "//mediapipe/framework/profiler/reporter:reporter_lib",
+        "//mediapipe/framework/tool:test_util",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+    ],
 )

@@ -28,7 +28,7 @@ namespace {
 // MuxInputStreamHandler should fail when running this test.
 TEST(MuxInputStreamHandlerTest, AtomicAccessToControlAndDataStreams) {
   CalculatorGraphConfig config =
-      ::mediapipe::ParseTextProtoOrDie<CalculatorGraphConfig>(R"(
+      mediapipe::ParseTextProtoOrDie<CalculatorGraphConfig>(R"(
         input_stream: "input"
         node {
           calculator: "RoundRobinDemuxCalculator"
@@ -77,14 +77,14 @@ TEST(MuxInputStreamHandlerTest, AtomicAccessToControlAndDataStreams) {
           input_stream_handler { input_stream_handler: "MuxInputStreamHandler" }
         })");
   CalculatorGraph graph;
-  MEDIAPIPE_ASSERT_OK(graph.Initialize(config));
-  MEDIAPIPE_ASSERT_OK(graph.StartRun({}));
+  MP_ASSERT_OK(graph.Initialize(config));
+  MP_ASSERT_OK(graph.StartRun({}));
   for (int i = 0; i < 2000; ++i) {
-    MEDIAPIPE_ASSERT_OK(graph.AddPacketToInputStream(
+    MP_ASSERT_OK(graph.AddPacketToInputStream(
         "input", Adopt(new int(i)).At(Timestamp(i))));
   }
-  MEDIAPIPE_ASSERT_OK(graph.CloseAllInputStreams());
-  MEDIAPIPE_ASSERT_OK(graph.WaitUntilDone());
+  MP_ASSERT_OK(graph.CloseAllInputStreams());
+  MP_ASSERT_OK(graph.WaitUntilDone());
 }
 
 }  // namespace
